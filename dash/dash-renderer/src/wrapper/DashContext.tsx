@@ -1,6 +1,6 @@
 import React, {useCallback, useContext, useMemo} from 'react';
 import {useStore, useSelector, useDispatch} from 'react-redux';
-import {concat, pathOr} from 'ramda';
+import {concat} from 'ramda';
 
 import {DashLayoutPath} from '../types/component';
 import {LoadingPayload} from '../actions/loading';
@@ -52,51 +52,79 @@ export function DashContextProvider(props: DashContextProviderProps) {
         () => JSON.stringify(componentPath),
         [componentPath]
     );
+
     const store = useStore();
 
+    /**
+     * Synchronous version (kept for compatibility)
+     */
     const isLoading = useCallback(
         (options?: LoadingOptions) => {
             const {extraPath, rawPath, filterFunc} = options || {};
-            let loadingPath = [stringPath];
+
+            let basePath = componentPath;
+
             if (extraPath) {
-                loadingPath = [
-                    JSON.stringify(concat(componentPath, extraPath))
-                ];
+                basePath = concat(componentPath, extraPath);
             } else if (rawPath) {
-                loadingPath = [JSON.stringify(rawPath)];
+                basePath = rawPath;
             }
-            const loading = pathOr(
-                [],
-                loadingPath,
-                (store.getState() as any).loading
-            );
+
+            const loadingPath = JSON.stringify(basePath);
+
+            const loading = (store.getState() as any).loading || {};
+            const load = loading[loadingPath] || [];
+
             return filterFunc
-                ? loading.filter(filterFunc).length > 0
-                : loading.length > 0;
+                ? load.filter(filterFunc).length > 0
+                : load.length > 0;
         },
-        [stringPath]
+        [componentPath, store]
     );
 
+    /**
+     * 🔥 FIXED: reactive loading hook
+     * Now matches loadingSelector behavior (prefix-based, not exact-path)
+     */
     const useLoading = useCallback(
         (options?: LoadingOptions) => {
             const {filterFunc, extraPath, rawPath} = options || {};
+
             return useSelector((state: any) => {
-                let loadingPath = [stringPath];
+                const loadingState = state.loading || {};
+
+                let basePath = componentPath;
+
                 if (extraPath) {
-                    loadingPath = [
-                        JSON.stringify(concat(componentPath, extraPath))
-                    ];
+                    basePath = concat(componentPath, extraPath);
                 } else if (rawPath) {
-                    loadingPath = [JSON.stringify(rawPath)];
+                    basePath = rawPath;
                 }
-                const load = pathOr([], loadingPath, state.loading);
-                if (filterFunc) {
-                    return load.filter(filterFunc).length > 0;
-                }
-                return load.length > 0;
+
+                // Match Dash internal format used in loading reducer
+                const stringBase = JSON.stringify(basePath);
+
+                // Normalize to prefix form used by Dash loading tree
+                const prefix = stringBase.slice(0, -1) + ','; // "[...," trick
+
+                const matches = Object.entries(loadingState).some(
+                    ([path, load]: [string, any]) => {
+                        if (!path.startsWith(prefix) || !load?.length) {
+                            return false;
+                        }
+
+                        if (filterFunc) {
+                            return load.some(filterFunc);
+                        }
+
+                        return true;
+                    }
+                );
+
+                return matches;
             });
         },
-        [stringPath]
+        [componentPath]
     );
 
     const ctxValue = useMemo(() => {
@@ -109,7 +137,7 @@ export function DashContextProvider(props: DashContextProviderProps) {
             useStore,
             useDispatch
         };
-    }, [stringPath]);
+    }, [stringPath, componentPath]);
 
     return (
         <DashContext.Provider value={ctxValue}>{children}</DashContext.Provider>
