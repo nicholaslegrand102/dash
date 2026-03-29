@@ -80,40 +80,23 @@ export function DashContextProvider(props: DashContextProviderProps) {
     const useLoading = useCallback(
         (options?: LoadingOptions) => {
             const {filterFunc, extraPath, rawPath} = options || {};
-
             return useSelector((state: any) => {
-                const loadingState = state.loading || {};
-
-                let basePath = componentPath;
-
+                let loadingPath = [stringPath];
                 if (extraPath) {
-                    basePath = concat(componentPath, extraPath);
+                    loadingPath = [
+                        JSON.stringify(concat(componentPath, extraPath))
+                    ];
                 } else if (rawPath) {
-                    basePath = rawPath;
+                    loadingPath = [JSON.stringify(rawPath)];
                 }
-
-                const stringBase = JSON.stringify(basePath);
-
-                const prefix = stringBase.slice(0, -1) + ','; // "[...," trick
-
-                const matches = Object.entries(loadingState).some(
-                    ([path, load]: [string, any]) => {
-                        if (!path.startsWith(prefix) || !load?.length) {
-                            return false;
-                        }
-
-                        if (filterFunc) {
-                            return load.some(filterFunc);
-                        }
-
-                        return true;
-                    }
-                );
-
-                return matches;
+                const load = pathOr([], loadingPath, state.loading);
+                if (filterFunc) {
+                    return load.filter(filterFunc).length > 0;
+                }
+                return load.length > 0;
             });
         },
-        [componentPath]
+        [stringPath]
     );
 
     const ctxValue = useMemo(() => {
@@ -126,7 +109,7 @@ export function DashContextProvider(props: DashContextProviderProps) {
             useStore,
             useDispatch
         };
-    }, [stringPath, componentPath]);
+    }, [stringPath]);
 
     return (
         <DashContext.Provider value={ctxValue}>{children}</DashContext.Provider>
