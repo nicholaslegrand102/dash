@@ -52,12 +52,8 @@ export function DashContextProvider(props: DashContextProviderProps) {
         () => JSON.stringify(componentPath),
         [componentPath]
     );
-
     const store = useStore();
 
-    /**
-     * Synchronous version (kept for compatibility)
-     */
     const isLoading = useCallback(
         (options?: LoadingOptions) => {
             const {extraPath, rawPath, filterFunc} = options || {};
@@ -82,10 +78,6 @@ export function DashContextProvider(props: DashContextProviderProps) {
         [componentPath, store]
     );
 
-    /**
-     * 🔥 FIXED: reactive loading hook
-     * Now matches loadingSelector behavior (prefix-based, not exact-path)
-     */
     const useLoading = useCallback(
         (options?: LoadingOptions) => {
             const {filterFunc, extraPath, rawPath} = options || {};
@@ -101,10 +93,8 @@ export function DashContextProvider(props: DashContextProviderProps) {
                     basePath = rawPath;
                 }
 
-                // Match Dash internal format used in loading reducer
                 const stringBase = JSON.stringify(basePath);
 
-                // Normalize to prefix form used by Dash loading tree
                 const prefix = stringBase.slice(0, -1) + ','; // "[...," trick
 
                 const matches = Object.entries(loadingState).some(
