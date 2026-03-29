@@ -1,6 +1,6 @@
 import React, {useCallback, useContext, useMemo} from 'react';
 import {useStore, useSelector, useDispatch} from 'react-redux';
-import {concat} from 'ramda';
+import {concat, pathOr} from 'ramda';
 
 import {DashLayoutPath} from '../types/component';
 import {LoadingPayload} from '../actions/loading';
@@ -57,25 +57,24 @@ export function DashContextProvider(props: DashContextProviderProps) {
     const isLoading = useCallback(
         (options?: LoadingOptions) => {
             const {extraPath, rawPath, filterFunc} = options || {};
-
-            let basePath = componentPath;
-
+            let loadingPath = [stringPath];
             if (extraPath) {
-                basePath = concat(componentPath, extraPath);
+                loadingPath = [
+                    JSON.stringify(concat(componentPath, extraPath))
+                ];
             } else if (rawPath) {
-                basePath = rawPath;
+                loadingPath = [JSON.stringify(rawPath)];
             }
-
-            const loadingPath = JSON.stringify(basePath);
-
-            const loading = (store.getState() as any).loading || {};
-            const load = loading[loadingPath] || [];
-
+            const loading = pathOr(
+                [],
+                loadingPath,
+                (store.getState() as any).loading
+            );
             return filterFunc
-                ? load.filter(filterFunc).length > 0
-                : load.length > 0;
+                ? loading.filter(filterFunc).length > 0
+                : loading.length > 0;
         },
-        [componentPath, store]
+        [stringPath]
     );
 
     const useLoading = useCallback(
